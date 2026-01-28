@@ -1,0 +1,19 @@
+# Android & iOS folders
+android/
+ios/
+
+# Capacitor files
+capacitor.config.ts
+capacitor.config.json
+
+# Local env files
+.env*.local
+
+# Node modules
+node_modules/
+
+# Build outputs
+.next/
+out/
+build/
+dist/

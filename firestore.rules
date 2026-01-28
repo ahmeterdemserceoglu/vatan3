@@ -1,0 +1,437 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // System Settings Collection
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // System Config Collection (Maintenance Mode, etc.)
+    match /systemConfig/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // ============================================
+    // HELPER FUNCTIONS - İzin Kontrolü
+    // ============================================
+    
+    // Kullanıcı bilgilerini al
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    // Board bilgilerini al
+    function getBoardData(boardId) {
+      return get(/databases/$(database)/documents/boards/$(boardId)).data;
+    }
+    
+    // Kullanıcının öğretmen olup olmadığını kontrol et
+    function isTeacher() {
+      return request.auth != null && getUserData().role == 'teacher';
+    }
+    
+    // Kullanıcının admin olup olmadığını kontrol et
+    function isAdmin() {
+      return request.auth != null && getUserData().role == 'admin';
+    }
+    
+    // Board erişim kontrolü
+    function canAccessBoard(boardId) {
+      let board = getBoardData(boardId);
+      return board.isPublic == true 
+             || (request.auth != null && (
+                request.auth.uid == board.ownerId 
+                || request.auth.uid in board.members
+                || isTeacher()
+                || isAdmin()
+             ));
+    }
+
+    // Kullanıcının board sahibi olup olmadığını kontrol et
+    function isBoardOwner(boardId) {
+      return request.auth != null && request.auth.uid == getBoardData(boardId).ownerId;
+    }
+    
+    // Kullanıcının board üyesi olup olmadığını kontrol et
+    function isBoardMember(boardId) {
+      return request.auth != null && request.auth.uid in getBoardData(boardId).members;
+    }
+    
+    // Not ekleme izni kontrolü
+    function canAddNotes(boardId) {
+      let board = getBoardData(boardId);
+      let whoCanAdd = board.permissions != null ? board.permissions.whoCanAddNotes : 'members';
+      
+      return isBoardOwner(boardId) 
+             || isTeacher()
+             || isAdmin()
+             || whoCanAdd == 'everyone'
+             || (whoCanAdd == 'members' && isBoardMember(boardId));
+    }
+    
+    // Yorum yapma izni kontrolü
+    function canComment(boardId) {
+      let board = getBoardData(boardId);
+      let whoCanComment = board.permissions != null ? board.permissions.whoCanComment : 'everyone';
+      
+      return isBoardOwner(boardId)
+             || isTeacher()
+             || whoCanComment == 'everyone'
+             || (whoCanComment == 'members' && isBoardMember(boardId));
+    }
+    
+    // Chat mesajı gönderme izni kontrolü
+    function canChat(boardId) {
+      let board = getBoardData(boardId);
+      let whoCanChat = board.permissions != null ? board.permissions.whoCanChat : 'everyone';
+      
+      return isBoardOwner(boardId)
+             || isTeacher()
+             || whoCanChat == 'everyone'
+             || (whoCanChat == 'members' && isBoardMember(boardId));
+    }
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // Sadece giriş yapmış kullanıcılar görebilir
+      allow read: if request.auth != null;
+      
+      // Sadece kendi profilini güncelleyebilir VEYA Admin güncelleyebilir
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+    
+    // ============================================
+    // BOARDS COLLECTION
+    // ============================================
+    match /boards/{boardId} {
+      // Erişim kontrolü: Sorguların çalışabilmesi için resource.data kullanılır
+      // Silinmiş panolara sadece sahibi veya admin erişebilir (çöp kutusu için)
+      allow read: if resource.data.isPublic == true 
+                  || (request.auth != null && (
+                    request.auth.uid == resource.data.ownerId 
+                    || request.auth.uid in resource.data.members
+                    || isTeacher()
+                    || isAdmin()
+                  ))
+                  // Silinmiş panolar için: sahip veya admin erişebilir
+                  || (resource.data.isDeleted == true && request.auth != null && (
+                    request.auth.uid == resource.data.ownerId
+                    || isAdmin()
+                  ));
+      
+      // Sadece giriş yapmış kullanıcılar pano oluşturabilir
+      allow create: if request.auth != null;
+      
+      // Pano sahibi veya admin silebilir
+      allow delete: if request.auth != null && (request.auth.uid == resource.data.ownerId || isAdmin());
+      
+      // Board güncelleme izinleri
+      allow update: if request.auth.uid == resource.data.ownerId 
+                    || isAdmin()
+                    || (isTeacher() && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['members', 'permissions', 'updatedAt']))
+                    || (request.auth != null && (
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+                    ));
+      
+      // ============================================
+      // MEMBER ACTIVITY SUB-COLLECTION
+      // ============================================
+      match /memberActivity/{userId} {
+        allow read: if canAccessBoard(boardId);
+        allow create, update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if isBoardOwner(boardId) || isTeacher();
+      }
+    }
+    
+    // ============================================
+    // SECTIONS COLLECTION
+    // ============================================
+    match /sections/{sectionId} {
+      // Panoya erişimi olan herkes bölümleri okuyabilir
+      allow read: if canAccessBoard(resource.data.boardId);
+      
+      // Giriş yapmış kullanıcılar bölüm oluşturabilir
+      allow create: if request.auth != null && canAccessBoard(request.resource.data.boardId);
+      
+      // Pano sahibi, öğretmen veya admin silebilir/güncelleyebilir
+      allow update, delete: if isTeacher() || isAdmin() || isBoardOwner(resource.data.boardId);
+    }
+    
+    // ============================================
+    // NOTES COLLECTION
+    // ============================================
+    match /notes/{noteId} {
+      // Panoya erişimi olan herkes okuyabilir
+      allow read: if canAccessBoard(resource.data.boardId);
+      
+      // Not oluşturma - board izinlerine göre
+      allow create: if request.auth != null && canAddNotes(request.resource.data.boardId);
+      
+      // Not sahibi, pano sahibi veya öğretmenler güncelleyebilir VEYA herkes likes alanını güncelleyebilir
+      allow update: if request.auth != null 
+                    && (request.auth.uid == resource.data.authorId 
+                        || isTeacher() 
+                        || isAdmin()
+                        || isBoardOwner(resource.data.boardId)
+                        || (canAccessBoard(resource.data.boardId) && 
+                            request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['likes', 'pollVotes', 'reactions', 'commentCount'])));
+      
+      allow delete: if request.auth != null 
+                    && (request.auth.uid == resource.data.authorId 
+                        || isTeacher() 
+                        || isAdmin()
+                        || isBoardOwner(resource.data.boardId));
+    }
+    
+    // ============================================
+    // COMMENTS COLLECTION
+    // ============================================
+    match /comments/{commentId} {
+      // Panoya erişimi olan herkes okuyabilir (boardId alanı yoksa eski veridir, direkt izin ver)
+      allow read: if request.auth != null && (!('boardId' in resource.data) || canAccessBoard(resource.data.boardId));
+      
+      // Yorum oluşturma - board izinlerine göre
+      allow create: if request.auth != null && canComment(request.resource.data.boardId);
+      
+      allow delete: if request.auth != null 
+                    && (request.auth.uid == resource.data.authorId 
+                        || isTeacher() 
+                        || isAdmin()
+                        || isBoardOwner(resource.data.boardId));
+      
+      // Yorum güncelleme: yazar düzenleyebilir VEYA (panoya erişimi olan herkes likes alanını güncelleyebilir)
+      allow update: if request.auth != null 
+                    && (request.auth.uid == resource.data.authorId 
+                        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+                            && (!('boardId' in resource.data) || canAccessBoard(resource.data.boardId))));
+    }
+    
+    // ============================================
+    // MESSAGES COLLECTION (Board Chat)
+    // ============================================
+    match /messages/{messageId} {
+      // Panoya erişimi olan herkes okuyabilir
+      allow read: if canAccessBoard(resource.data.boardId);
+      
+      // Mesaj gönderme - board izinlerine göre
+      allow create: if request.auth != null && canChat(request.resource.data.boardId);
+      
+      // Mesaj sahibi, pano sahibi veya öğretmenler silebilir
+      allow delete: if request.auth != null 
+                    && (request.auth.uid == resource.data.senderId 
+                        || isTeacher() 
+                        || isBoardOwner(resource.data.boardId));
+      
+      allow update: if request.auth != null 
+                    && (request.auth.uid == resource.data.senderId 
+                        || isAdmin()
+                        || (isTeacher()
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isPinned', 'pinnedBy', 'pinnedAt'])));
+    }
+    
+    // ============================================
+    // NOTIFICATIONS COLLECTION
+    // ============================================
+    match /notifications/{notificationId} {
+      // Sadece bildirim sahibi okuyabilir
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Giriş yapmış kullanıcılar bildirim oluşturabilir
+      // Ödev bildirimleri (homework_assigned, homework_reminder) sadece öğretmenler oluşturabilir
+      allow create: if request.auth != null
+                    && (
+                      // Normal bildirimler herkes oluşturabilir
+                      !(request.resource.data.type in ['homework_assigned', 'homework_reminder', 'new_assignment', 'assignment_due'])
+                      // Ödev bildirimi öğretmen veya admin tarafından
+                      || (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'])
+                    );
+      
+      // Bildirim sahibi güncelleyebilir (okundu işaretleme)
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Bildirim sahibi silebilir
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // ============================================
+    // TYPING INDICATORS COLLECTION
+    // ============================================
+    match /typing/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // ============================================
+    // POLL VOTES COLLECTION (Anketler için)
+    // ============================================
+    match /pollVotes/{voteId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // ============================================
+    // PRESENCE COLLECTION (Çevrimiçi durumu)
+    // ============================================
+    match /presence/{docId} {
+      // Herkes kimler çevrimiçi görebilir
+      allow read: if true;
+      
+      // Giriş yapmış kullanıcılar kendi durumlarını yazabilir
+      allow create, update: if request.auth != null;
+      
+      // Kendi durumunu silebilir (çevrimdışı olunca)
+      allow delete: if request.auth != null;
+    }
+    
+    // ============================================
+    // ASSIGNMENTS COLLECTION (Ödevler)
+    // ============================================
+    match /assignments/{assignmentId} {
+      // Herkes okuyabilir
+      allow read: if true;
+      
+      // Sadece öğretmenler veya adminler oluşturabilir
+      allow create: if request.auth != null 
+                    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'];
+      
+      // Oluşturan kişi veya öğretmenler güncelleyebilir/silebilir
+      allow update, delete: if request.auth != null 
+                    && (request.auth.uid == resource.data.createdBy 
+                        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin']);
+    }
+    
+    // ============================================
+    // SUBMISSIONS COLLECTION (Ödev Teslimleri)
+    // ============================================
+    match /submissions/{submissionId} {
+      // Teslim eden öğrenci veya öğretmenler okuyabilir
+      allow read: if request.auth != null;
+      
+      // Giriş yapmış öğrenciler teslim oluşturabilir
+      allow create: if request.auth != null;
+      
+      // Öğrenci kendi teslimini güncelleyebilir (not verilmeden önce)
+      // Öğretmenler notlandırma yapabilir
+      allow update: if request.auth != null 
+                    && (request.auth.uid == resource.data.studentId 
+                        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin']);
+      
+      // Sadece teslim eden silebilir
+      allow delete: if request.auth != null && request.auth.uid == resource.data.studentId;
+    }
+    
+    // ============================================
+    // FCM TOKENS COLLECTION (Push Notifications)
+    // ============================================
+    match /fcmTokens/{tokenId} {
+      // Kullanıcı kendi token'larını okuyabilir (userId veya userId_platform formatı)
+      allow read: if request.auth != null && 
+        (tokenId == request.auth.uid || tokenId.matches(request.auth.uid + '_.*'));
+      
+      // Kullanıcı kendi token'larını yazabilir
+      allow create, update: if request.auth != null && 
+        (tokenId == request.auth.uid || tokenId.matches(request.auth.uid + '_.*'));
+      
+      // Kullanıcı kendi token'larını silebilir
+      allow delete: if request.auth != null && 
+        (tokenId == request.auth.uid || tokenId.matches(request.auth.uid + '_.*'));
+    }
+    
+    // ============================================
+    // ACTIVITY LOGS COLLECTION
+    // Kullanıcı aksiyonlarını takip eder
+    // ============================================
+    match /activityLogs/{logId} {
+      // Öğretmenler kendi panolarının loglarını okuyabilir
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId
+        || (resource.data.metadata.boardId != null 
+            && (getBoardData(resource.data.metadata.boardId).ownerId == request.auth.uid
+                || isTeacher() || isAdmin()))
+      );
+      
+      // Giriş yapmış herkes log oluşturabilir
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      
+      // Loglar sadece admin tarafından silinebilir/güncellenebilir
+      allow update, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // CONVERSATIONS COLLECTION (DM & Group Chats)
+    // ============================================
+    match /conversations/{conversationId} {
+      // Helper: Kullanıcı katılımcı mı?
+      function isParticipant() {
+        return request.auth != null && request.auth.uid in resource.data.participants;
+      }
+      
+      // Helper: blockedBy kontrolü (null-safe)
+      function isBlocked(userId) {
+        return resource.data.blockedBy != null && userId in resource.data.blockedBy;
+      }
+      
+      // Helper: Kullanıcı grup admini mi? (null-safe)
+      function isGroupAdmin() {
+        return resource.data.isGroup == true 
+               && resource.data.admins != null 
+               && request.auth.uid in resource.data.admins;
+      }
+      
+      // Helper: Kullanıcı grup oluşturucusu mu?
+      function isGroupCreator() {
+        return resource.data.isGroup == true && request.auth.uid == resource.data.createdBy;
+      }
+      
+      // Okuma: Katılımcı olmalı VEYA 1:1 sohbet ID'sinde kendi uid'si olmalı
+      allow read: if request.auth != null && (
+        request.auth.uid in resource.data.participants
+        || conversationId.matches('.*' + request.auth.uid + '.*')
+      );
+      
+      // Oluşturma: Katılımcı listesinde olmalı
+      allow create: if request.auth != null && request.auth.uid in request.resource.data.participants;
+      
+      // Güncelleme: Katılımcı olmalı
+      allow update: if request.auth != null && request.auth.uid in resource.data.participants;
+      
+      // Silme: Birebir sohbette katılımcı, grupta oluşturucu
+      allow delete: if request.auth != null && (
+        (resource.data.isGroup != true && request.auth.uid in resource.data.participants)
+        || (resource.data.isGroup == true && request.auth.uid == resource.data.createdBy)
+      );
+      
+      // ============================================
+      // MESSAGES SUB-COLLECTION
+      // ============================================
+      match /messages/{messageId} {
+        // Okuma: Katılımcı olmalı
+        allow read: if request.auth != null 
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        
+        // Oluşturma: Katılımcı olmalı ve senderId kendisi olmalı
+        allow create: if request.auth != null 
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants
+          && request.auth.uid == request.resource.data.senderId;
+        
+        // Güncelleme: Katılımcı olmalı
+        allow update: if request.auth != null 
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        
+        // Silme: Mesaj sahibi
+        allow delete: if request.auth != null 
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants
+          && request.auth.uid == resource.data.senderId;
+      }
+    }
+  }
+}

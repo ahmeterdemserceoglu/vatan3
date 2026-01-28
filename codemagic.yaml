@@ -1,0 +1,38 @@
+workflows:
+  ios-capacitor-workflow:
+    name: Collabo iOS Capacitor Workflow
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+    environment:
+      node: 18
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Build Next.js app
+        script: |
+          npm run build
+      - name: Install iOS dependencies
+        script: |
+          cd ios/App && pod install
+      - name: Sync Capacitor
+        script: |
+          npx cap sync ios
+      - name: Build iOS IPA
+        script: |
+          # Bu komut imzalanmamış bir IPA üretir (development). 
+          # App Store için Codemagic panelinden 'Automatic Code Signing' açılmalıdır.
+          xcode-project build-ipa \
+            --workspace ios/App/App.xcworkspace \
+            --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com # Burayı kendi e-postanla değiştirebilirsin
+        notify:
+          success: true
+          failure: true

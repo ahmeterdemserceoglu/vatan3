@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "801567940244",
+    "firebase_url": "https://sakarya30-76810-default-rtdb.firebaseio.com",
+    "project_id": "sakarya30-76810",
+    "storage_bucket": "sakarya30-76810.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:801567940244:android:f1bc3533522500d56d1e81",
+        "android_client_info": {
+          "package_name": "com.collabo.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "801567940244-phghl75rve27alfb9dg4suha49eufsf7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.collabo.app",
+            "certificate_hash": "60b6d5c46fee9efae75a7ea3235b42c0008004ff"
+          }
+        },
+        {
+          "client_id": "801567940244-t12hj1gb9m9svmd0kjuoohcf6e8rk7b5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB00JnoLcBGMtnMsTHnf7-nDHJ-k-sgUcw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "801567940244-t12hj1gb9m9svmd0kjuoohcf6e8rk7b5.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

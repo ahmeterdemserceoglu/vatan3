@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Collabo</string>
+    <string name="title_activity_main">Collabo</string>
+    <string name="package_name">com.collabo.app</string>
+    <string name="custom_url_scheme">com.collabo.app</string>
+</resources>

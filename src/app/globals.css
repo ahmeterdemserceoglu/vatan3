@@ -1,0 +1,263 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --foreground: #292524;
+    --background: #f5f5f4;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --muted: #78716c;
+    --accent: #57534e;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root,
+#__next {
+    overflow-x: hidden !important;
+    overflow-y: auto;
+    width: 100%;
+    max-width: 100%;
+    overscroll-behavior-x: none;
+    -ms-overflow-style: none;
+    /* IE/Edge */
+    touch-action: pan-y;
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    color: var(--foreground);
+    background: var(--background);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+main {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Matte Button Styles */
+.btn-primary {
+    @apply px-5 py-2.5 bg-stone-800 text-white rounded-lg font-medium transition-all duration-200 hover:bg-stone-700 active:scale-[0.98] shadow-matte;
+}
+
+.btn-secondary {
+    @apply px-5 py-2.5 bg-white text-stone-700 rounded-lg font-medium border border-stone-200 transition-all duration-200 hover:bg-stone-50 active:scale-[0.98] shadow-matte;
+}
+
+/* Matte Card Styles */
+.card {
+    @apply bg-white rounded-xl border border-stone-200 shadow-matte transition-all duration-200;
+}
+
+.card:hover {
+    @apply shadow-matte-md;
+}
+
+/* Note Card Styles - Matte Index Card Look */
+.note-card {
+    @apply rounded-xl border border-stone-200/60 shadow-matte transition-all duration-200;
+}
+
+.note-card:hover {
+    @apply shadow-matte-md translate-y-[-2px];
+}
+
+/* Board Grid */
+.board-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+}
+
+/* Masonry Layout */
+.masonry-grid {
+    column-count: 4;
+    column-gap: 1.25rem;
+}
+
+@media (max-width: 1200px) {
+    .masonry-grid {
+        column-count: 3;
+    }
+}
+
+@media (max-width: 900px) {
+    .masonry-grid {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 600px) {
+    .masonry-grid {
+        column-count: 1;
+    }
+}
+
+.masonry-item {
+    break-inside: avoid;
+    margin-bottom: 1.25rem;
+}
+
+/* Input Styles */
+.input-matte {
+    @apply w-full px-4 py-2.5 bg-white border border-stone-200 rounded-lg text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-300 focus:border-transparent transition-all duration-200;
+}
+
+/* Animation Classes */
+.animate-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Highlight pulse animation for notification navigation */
+@keyframes highlightPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+        background-color: rgba(59, 130, 246, 0.05);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+        background-color: rgba(59, 130, 246, 0.15);
+    }
+}
+
+.animate-highlight-pulse {
+    animation: highlightPulse 1s ease-in-out 3;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f5f5f4;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d6d3d1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a29e;
+}
+
+/* Typing Indicator Animation - Smoother Wave */
+@keyframes typingWave {
+
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+
+    30% {
+        transform: translateY(-4px);
+        opacity: 1;
+    }
+}
+
+.typing-dot {
+    animation: typingWave 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* Skeleton Wave Animation */
+@keyframes skeletonWave {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton-wave {
+    background: linear-gradient(90deg,
+            #e7e5e4 0%,
+            #f5f5f4 50%,
+            #e7e5e4 100%);
+    background-size: 200% 100%;
+    animation: skeletonWave 1.5s ease-in-out infinite;
+}
+
+/* Custom scrollbar for chat and modals */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #d6d3d1;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #a8a29e;
+}
+
+/* Safe Area Utilities */
+.pt-safe {
+    padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mt-safe {
+    margin-top: env(safe-area-inset-top);
+}
+
+.mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+}
